@@ -1,0 +1,16 @@
+# 安装时写入的本机 Python 路径，因机器而异
+.python-path
+
+# 索引库绝不能进版本库：里面有从 session 扫出来的凭证明文。
+# 默认位置在 ~/.claude/session-index，不在仓库内；下面这几条是防止
+# 有人把 INDEX_DIR 改到仓库目录后误提交。
+session-index/
+*.db
+*.db-shm
+*.db-wal
+refresh.log
+
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
