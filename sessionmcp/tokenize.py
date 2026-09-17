@@ -85,7 +85,10 @@ def build_query(text: str) -> Query:
             else:
                 parts.append(run.lower())
         if parts:
-            groups.append(" ".join(f'"{p}"' for p in parts))
+            # All tokens derived from one user term must remain adjacent and ordered.
+            # Quoting each token separately only applies AND semantics in FTS5, which
+            # lets bigrams scattered across a chunk masquerade as one CJK phrase.
+            groups.append(f'"{" ".join(parts)}"')
 
     return Query(match=" ".join(groups), like_terms=tuple(like_terms))
 
