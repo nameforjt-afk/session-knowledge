@@ -50,9 +50,29 @@ def _log(message: str) -> None:
     print(f"[{SERVER_NAME}] {message}", file=sys.stderr, flush=True)
 
 
+def _bounded_int(
+    kwargs: dict[str, Any],
+    name: str,
+    default: int,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Parse a bounded integer supplied by an MCP client."""
+    raw = kwargs.get(name, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(f"{name} 必须是整数") from exc
+    if not minimum <= value <= maximum:
+        raise TypeError(f"{name} 必须在 {minimum} 到 {maximum} 之间")
+    return value
+
+
 # ---------------------------------------------------------------- 工具实现
 
 def _search_sessions(**kwargs: Any) -> Any:
+    limit = _bounded_int(kwargs, "limit", 15, minimum=1, maximum=100)
     return q.search(
         _index(),
         kwargs["query"],
@@ -60,51 +80,59 @@ def _search_sessions(**kwargs: Any) -> Any:
         kind=kwargs.get("kind"),
         since=kwargs.get("since"),
         until=kwargs.get("until"),
-        limit=int(kwargs.get("limit", 15)),
+        limit=limit,
     )
 
 
 def _get_session(**kwargs: Any) -> Any:
+    offset = _bounded_int(kwargs, "offset", 0, minimum=0, maximum=1_000_000)
+    limit = _bounded_int(kwargs, "limit", 40, minimum=1, maximum=100)
     return q.get_session(
         _index(),
         kwargs["session_id"],
-        offset=int(kwargs.get("offset", 0)),
-        limit=int(kwargs.get("limit", 40)),
+        offset=offset,
+        limit=limit,
         kind=kwargs.get("kind"),
     )
 
 
 def _list_sessions(**kwargs: Any) -> Any:
+    limit = _bounded_int(kwargs, "limit", 40, minimum=1, maximum=100)
     return q.list_sessions(
         _index(),
         project=kwargs.get("project"),
         since=kwargs.get("since"),
-        limit=int(kwargs.get("limit", 40)),
+        limit=limit,
     )
 
 
 def _find_tool_call(**kwargs: Any) -> Any:
+    limit = _bounded_int(kwargs, "limit", 15, minimum=1, maximum=100)
     return q.find_tool_call(
         _index(),
         kwargs["pattern"],
         tool=kwargs.get("tool"),
         session=kwargs.get("session"),
         errors_only=bool(kwargs.get("errors_only", False)),
-        limit=int(kwargs.get("limit", 15)),
+        limit=limit,
     )
 
 
 def _get_timeline(**kwargs: Any) -> Any:
+    limit = _bounded_int(kwargs, "limit", 25, minimum=1, maximum=100)
     return q.get_timeline(
-        _index(), kwargs["topic"], since=kwargs.get("since"), limit=int(kwargs.get("limit", 25))
+        _index(), kwargs["topic"], since=kwargs.get("since"), limit=limit
     )
 
 
 def _synthesize_topic(**kwargs: Any) -> Any:
+    max_sessions = _bounded_int(
+        kwargs, "max_sessions", 8, minimum=1, maximum=20
+    )
     return q.synthesize_topic(
         _index(),
         kwargs["query"],
-        max_sessions=int(kwargs.get("max_sessions", 8)),
+        max_sessions=max_sessions,
         since=kwargs.get("since"),
     )
 
@@ -155,9 +183,10 @@ def _find_implementation(**kwargs: Any) -> Any:
 def _list_duplication(**kwargs: Any) -> Any:
     from . import codeindex
 
+    min_count = _bounded_int(kwargs, "min_count", 3, minimum=2, maximum=100)
     return {
         "forks": codeindex.detect_forks(_code()),
-        **codeindex.list_duplication(_code(), min_count=int(kwargs.get("min_count", 3))),
+        **codeindex.list_duplication(_code(), min_count=min_count),
     }
 
 
@@ -198,7 +227,12 @@ TOOLS: list[dict[str, Any]] = [
                 "kind": {"type": "string", "enum": _KIND_ENUM, "description": "限定内容类型。查决策口径优先用 user_instruction"},
                 "since": {"type": "string", "description": "起始时间 ISO 格式，如 2026-07-01"},
                 "until": {"type": "string", "description": "截止时间 ISO 格式"},
-                "limit": {"type": "integer", "description": "返回条数，默认 15"},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "返回条数，默认 15",
+                },
             },
             "required": ["query"],
         },
@@ -211,8 +245,18 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "session_id": {"type": "string", "description": "session id，可用前 8 位"},
-                "offset": {"type": "integer", "description": "起始段号，默认 0"},
-                "limit": {"type": "integer", "description": "本页段数，默认 40"},
+                "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                    "description": "起始段号，默认 0",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "本页段数，默认 40",
+                },
                 "kind": {"type": "string", "enum": _KIND_ENUM, "description": "只看某一类内容"},
             },
             "required": ["session_id"],
@@ -227,7 +271,12 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "project": {"type": "string"},
                 "since": {"type": "string", "description": "只看此日期之后的"},
-                "limit": {"type": "integer", "description": "默认 40"},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "默认 40",
+                },
             },
         },
         "handler": _list_sessions,
@@ -246,7 +295,12 @@ TOOLS: list[dict[str, Any]] = [
                 "tool": {"type": "string", "description": "限定工具名，如 Bash、Edit、mcp__adspower"},
                 "session": {"type": "string", "description": "限定 session id 前缀"},
                 "errors_only": {"type": "boolean", "description": "只看失败的调用"},
-                "limit": {"type": "integer", "description": "默认 15"},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "默认 15",
+                },
             },
             "required": ["pattern"],
         },
@@ -260,7 +314,12 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "topic": {"type": "string"},
                 "since": {"type": "string"},
-                "limit": {"type": "integer", "description": "默认 25"},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "默认 25",
+                },
             },
             "required": ["topic"],
         },
@@ -277,7 +336,12 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
-                "max_sessions": {"type": "integer", "description": "最多取几个 session，默认 8"},
+                "max_sessions": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "最多取几个 session，默认 8",
+                },
                 "since": {"type": "string"},
             },
             "required": ["query"],
@@ -372,7 +436,12 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "min_count": {"type": "integer", "description": "同名函数至少出现几次才列出，默认 3"}
+                "min_count": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 100,
+                    "description": "同名函数至少出现几次才列出，默认 3",
+                }
             },
         },
         "handler": _list_duplication,
