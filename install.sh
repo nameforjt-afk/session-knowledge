@@ -48,13 +48,14 @@ chmod +x "$ROOT/refresh.sh"
 say "[2/5] 注册 MCP server（写入 ~/.claude.json）"
 
 "$PYTHON" - "$CLAUDE_JSON" "$ROOT" "$PYTHON" <<'PY'
-import json, os, shutil, sys
+import json, os, sys
 
 path, root, python = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, root)
+from sessionmcp.configio import atomic_write_json
 
 data = {}
 if os.path.exists(path):
-    shutil.copy2(path, path + ".bak")
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -67,10 +68,7 @@ servers["session-knowledge"] = {
     "env": {"PYTHONPATH": root},
 }
 
-tmp = path + ".tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-os.replace(tmp, path)
+atomic_write_json(path, data, backup=os.path.exists(path))
 print(f"  \033[1;32m✓ {'更新' if existed else '新增'} mcpServers['session-knowledge']"
       f"{'（旧配置已备份为 .claude.json.bak）' if existed else ''}\033[0m")
 PY
@@ -79,14 +77,15 @@ PY
 
 say "[3/5] 注册 SessionStart hook（每次开会话自动增量刷新索引）"
 
-"$PYTHON" - "$SETTINGS" "$ROOT/refresh.sh" <<'PY'
-import json, os, shutil, sys
+"$PYTHON" - "$SETTINGS" "$ROOT/refresh.sh" "$ROOT" <<'PY'
+import json, os, sys
 
-path, script = sys.argv[1], sys.argv[2]
+path, script, root = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, root)
+from sessionmcp.configio import atomic_write_json
 
 data = {}
 if os.path.exists(path):
-    shutil.copy2(path, path + ".bak")
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -105,10 +104,7 @@ for group in groups:
 else:
     groups.append({"hooks": [entry]})
 
-tmp = path + ".tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-os.replace(tmp, path)
+atomic_write_json(path, data, backup=os.path.exists(path))
 print("  \033[1;32m✓ hooks.SessionStart 已就位（不影响你已有的其它 hook）\033[0m")
 PY
 
