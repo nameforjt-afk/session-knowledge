@@ -2,6 +2,10 @@
 
 [English](README.md) · 中文
 
+[![Tests](https://github.com/nameforjt-afk/session-knowledge/actions/workflows/tests.yml/badge.svg)](https://github.com/nameforjt-afk/session-knowledge/actions/workflows/tests.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 把你积累的 Claude Code 历史会话变成可检索的知识库，让任何一个新会话都能查到
 「这事之前是怎么定的」「那条命令当时怎么跑的」「这个 key 用的哪个值」。
 
@@ -172,6 +176,13 @@ bash uninstall.sh --purge    # 连索引库一起删
 - **首次全量索引**几百个会话大约 1-3 分钟，之后增量刷新 1-2 秒。
 - 需要 **Python 3.10+**，且自带的 sqlite3 要编译了 FTS5。macOS 系统自带的
   Python 有时不满足，装 python.org 官方版或 `brew install python` 即可。
+
+## 参与贡献与安全报告
+
+提交 Issue 或 PR 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。公开报告中不要放入
+真实会话或凭证；潜在漏洞请按 [SECURITY.md](SECURITY.md) 通过私密渠道报告。
+
+版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
