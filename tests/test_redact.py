@@ -21,6 +21,16 @@ class RedactionTests(unittest.TestCase):
         self.assertIn(REDACTION_PREFIX, clean)
         self.assertEqual(["OPENAI_API_KEY"], [finding.label for finding in findings])
 
+    def test_placeholder_marker_inside_real_secret_does_not_bypass_redaction(self) -> None:
+        for marker in ("foo", "bar", "todo"):
+            with self.subTest(marker=marker):
+                secret = f"prod-{marker}-secret-123456"
+
+                clean, findings = redact(f"API_KEY={secret}")
+
+                self.assertNotIn(secret, clean)
+                self.assertEqual(["API_KEY"], [finding.label for finding in findings])
+
     def test_common_literal_secrets_are_removed_without_variable_names(self) -> None:
         original = "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456"
 
