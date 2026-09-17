@@ -114,6 +114,19 @@ class IndexQueryIntegrationTests(unittest.TestCase):
         self.assertEqual(2, page["total_chunks"])
         self.assertEqual(["second"], [chunk["text"] for chunk in page["chunks"]])
 
+    def test_get_session_rejects_an_ambiguous_id_prefix(self) -> None:
+        self._write_session("abcdef01-first", "first private decision")
+        self._write_session("abcdef01-second", "second private decision")
+
+        result = query.get_session(self.conn, "abcdef01")
+
+        self.assertIn("error", result)
+        self.assertEqual(
+            ["abcdef01-first", "abcdef01-second"],
+            result["matches"],
+        )
+        self.assertNotIn("chunks", result)
+
 
 if __name__ == "__main__":
     unittest.main()
