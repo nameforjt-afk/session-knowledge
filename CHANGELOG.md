@@ -2,6 +2,13 @@
 
 All notable changes to session-knowledge are documented here.
 
+## Unreleased
+
+### Security
+
+- Preserve existing Claude configuration file permissions during installation and create
+  new configuration files as mode 0600.
+
 ## [0.1.0] - 2026-09-17
 
 ### Added
