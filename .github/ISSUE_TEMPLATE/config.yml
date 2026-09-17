@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/nameforjt-afk/session-knowledge/security/advisories/new
+    about: Report credential exposure and other vulnerabilities privately.
