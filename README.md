@@ -1,9 +1,20 @@
 # session-knowledge
 
-把你积累的 Claude Code 历史会话变成可检索的知识库，让任何一个新会话都能查到
-「这事之前是怎么定的」「那条命令当时怎么跑的」「这个 key 用的哪个值」。
+**Claude Code's memory is scoped per project directory. Your history isn't.**
 
-装完之后 Claude 会多出 13 个 MCP 工具，你正常提问它自己就会去查。
+Every session you've ever run is already on disk in `~/.claude/projects/**/*.jsonl` —
+every decision, every command that worked, every credential you pasted. But open a
+session in a different directory and none of it is reachable. You re-ask questions you
+already answered, and re-implement integrations you already wrote.
+
+This indexes all of it and hands Claude 13 MCP tools to search it. You just ask normally.
+
+> *What was the retry logic in that deploy script?*
+> *Which DATABASE_URL did I actually use for staging?*
+> *Before I write the Stripe integration — has anyone here already done payment auth?*
+
+Pure Python standard library. No third-party dependencies, no embeddings, no API calls,
+nothing leaves your machine.
 
 ```bash
 git clone https://github.com/nameforjt-afk/session-knowledge.git
@@ -11,166 +22,198 @@ cd session-knowledge
 bash install.sh
 ```
 
-零第三方依赖（纯 Python 标准库），装完重启 Claude Code 即可。
+Restart Claude Code. Done.
 
 ---
 
-## ⚠️ 先看这条
+## ⚠️ Read this before installing
 
-索引库建在 `~/.claude/session-index/`，**里面有从你会话里扫出来的凭证明文**——
-这是「查一下当时用的哪个 key」这个功能能成立的前提。
+The index lives in `~/.claude/session-index/` and **it contains plaintext credentials
+scraped from your sessions.** That is the precondition for "which key did I use here"
+to work at all.
 
-**这个目录永远不要提交 git、不要同步网盘、不要打包发给别人。**
-本仓库 `.gitignore` 已经挡住了默认位置，但你要是改了路径就得自己注意。
+**Never commit that directory, never sync it to cloud storage, never send it to anyone.**
+This repo's `.gitignore` covers the default location, but if you relocate it that's on you.
 
-全文索引本身是脱敏的：常见凭证格式（API key、Bearer token、JWT、GitHub PAT、
-连接串里的密码）在入库前会被替换成 `⟦SECRET:指纹⟧`，明文只存在权限 0600 的
-`vault.db` 里，要显式调 `creds get` 才拿得到。
-但脱敏是模式匹配，不是万能——自定义格式的密钥可能漏网。
+The full-text index itself is redacted: common credential shapes (API keys, Bearer
+tokens, JWTs, GitHub PATs, passwords inside connection strings) are replaced with
+`⟦SECRET:fingerprint⟧` before they are written. Plaintext lives only in `vault.db`
+at mode 0600, and only an explicit `creds get` returns it.
 
----
-
-## 它解决什么
-
-Claude Code 的自动记忆是**按项目目录隔离**的：换个目录开会话，别处存的记忆一条
-都看不到。而真正想找的东西恰恰是跨项目的：
-
-- **当时怎么拍板的** —— 散在几千条历史指令里的口径和决策
-- **跑通过的操作** —— 每一次 Bash 调用、MCP 调用，连同参数和返回
-- **凭证到底用哪个** —— 同一个变量名往往有多个取值（多个应用、多张表、开发/生产混用）
-- **这个能力是不是已经实现过了** —— 按外部服务标签查，而不是靠猜函数名
-
-最后一条是最省事的：写新集成之前先问一句「有人实现过飞书鉴权吗」，
-比 grep 有效得多——grep 要求你已经知道该搜 `tenant_access_token`，
-按服务标签查不需要。
+Redaction is pattern matching, not magic. Custom-format secrets can slip through.
+`verify-redaction` spot-checks for leaks.
 
 ---
 
-## 用法
+## What it actually solves
 
-### 平时：什么都不用做
+Four things, in rough order of how often they save you:
 
-装好后每次开 Claude Code 会自动增量刷新索引（异步，不阻塞启动，通常 1-2 秒）。
-你直接提问就行：
+**1. "Have I already built this?"** — Search by *external service*, not by function name.
+`grep` only works if you already know the string to search for (you need to know it's
+`tenant_access_token` before you can grep for Feishu auth). Capability tags don't
+require that.
 
-> 上次那个部署脚本的重试逻辑是怎么写的？
-> 这个 DATABASE_URL 我之前用的哪个值？
-> 写 Stripe 对接之前先查查有没有现成的
+**2. "How did we decide this?"** — The rationale is buried in thousands of past
+instructions. Full-text search over them, filterable to just your own instructions.
 
-### 命令行
+**3. "How did that command go again?"** — Every Bash and MCP call, with arguments and
+results. Filter to only the ones that *failed*, to recall the traps.
+
+**4. "Which value does this key take?"** — Same variable name routinely has several
+real values (multiple apps, dev vs prod, two tables). It returns all candidates ranked,
+with the call site each came from, rather than silently picking one.
+
+---
+
+## Usage
+
+### Day to day: nothing
+
+A hook refreshes the index incrementally on each Claude Code start (async, non-blocking,
+usually 1–2s). Ask questions normally; Claude reaches for the tools on its own.
+
+### CLI
 
 ```bash
-cd session-knowledge
+python3 -m sessionmcp.cli index                     # incremental refresh
+python3 -m sessionmcp.cli stats                     # index health check
 
-python3 -m sessionmcp.cli index                    # 增量刷新索引
-python3 -m sessionmcp.cli stats                    # 索引概况自检
+python3 -m sessionmcp.cli search "deploy timeout"   # full text (multi-word = AND)
+python3 -m sessionmcp.cli search "pricing" --kind user_instruction
+python3 -m sessionmcp.cli tool "docker build"       # past commands and API calls
+python3 -m sessionmcp.cli tool "stripe" --errors    # only the ones that failed
+python3 -m sessionmcp.cli timeline "that migration" # reconstruct how it unfolded
+python3 -m sessionmcp.cli synth "rate limiting"     # cross-session material pack
+python3 -m sessionmcp.cli evolution "auth design"   # how a decision changed over time
 
-python3 -m sessionmcp.cli search "部署 超时"        # 全文检索（多词是 AND）
-python3 -m sessionmcp.cli search "口径" --kind user_instruction
-python3 -m sessionmcp.cli tool "docker build"      # 翻历史命令和 API 调用
-python3 -m sessionmcp.cli tool "feishu" --errors   # 只看失败过的，回忆踩过的坑
-python3 -m sessionmcp.cli timeline "这个方案"        # 按时间还原一件事的推进
-python3 -m sessionmcp.cli synth "封号"              # 跨会话收集素材包供归纳
-python3 -m sessionmcp.cli evolution "定价标准"       # 主题演进：改了几版、为什么
+python3 -m sessionmcp.cli code find --capability stripe   # who implemented payment auth
+python3 -m sessionmcp.cli code find send_message          # by symbol name
+python3 -m sessionmcp.cli code dup                        # duplicate-implementation report
 
-python3 -m sessionmcp.cli code find --capability feishu   # 谁实现过飞书鉴权
-python3 -m sessionmcp.cli code find send_message          # 按函数名查
-python3 -m sessionmcp.cli code dup                        # 重复实现清单
-
-python3 -m sessionmcp.cli creds list                # 变量名录（不返回值）
-python3 -m sessionmcp.cli creds get DATABASE_URL    # 取值，返回全部候选
-python3 -m sessionmcp.cli creds get X --masked      # 只看遮蔽形式
-python3 -m sessionmcp.cli verify-redaction          # 确认索引里没有明文密钥
+python3 -m sessionmcp.cli creds list                 # variable names only, never values
+python3 -m sessionmcp.cli creds get DATABASE_URL     # all candidates, ranked
+python3 -m sessionmcp.cli creds get X --masked       # masked form only
+python3 -m sessionmcp.cli verify-redaction           # confirm no plaintext in the index
 ```
 
-**检索是 AND 语义，词越多命中越少。** 查历史用 2-3 个当时真会用的词，不要写长句。
+**Search is AND. More words means fewer hits.** Use the 2–3 words you would actually
+have typed back then, not a sentence.
 
-### 关于假凭证
+### The fake-credential problem
 
-会话里出现的「凭证」不全是真的——文档示例、报错片段、讨论时随手编的样例值
-都会被抽进来，而且长得跟真值一模一样。一个混进候选列表的假值比没有这条记录
-更危险：它看起来完全合理，你会拿去用。
+Not every "credential" in your history is real. Doc examples, error snippets, values
+someone made up mid-discussion — all get extracted, and they look exactly like the real
+thing. A fake in your candidate list is worse than no record at all: it looks perfectly
+plausible, so you use it.
 
-发现假值就永久拉黑：
+Blacklist it permanently:
 
 ```bash
-python3 -m sessionmcp.cli creds forget --fingerprint <fp> --reason "文档示例"
+python3 -m sessionmcp.cli creds forget --fingerprint <fp> --reason "doc example"
 ```
 
-只删是没用的——索引每天自动重扫，两秒后同样的值又回来了。`forget` 是删除 + 拉黑。
+Deleting alone does nothing — the index re-scans daily and the value comes right back.
+`forget` is delete **plus** blacklist.
 
 ---
 
-## 工作原理
+## The 13 MCP tools
+
+| | |
+|---|---|
+| `search_sessions` | full-text search across every session |
+| `get_session` | page through one session's full transcript |
+| `list_sessions` | session metadata (title, project, date, turns) |
+| `get_timeline` | chronological reconstruction of one topic |
+| `synthesize_topic` | curated excerpts across sessions, for summarizing |
+| `track_evolution` | how a decision or standard changed, bucketed by month |
+| `find_tool_call` | past Bash/MCP calls with arguments; `errors_only` to recall traps |
+| `find_implementation` | existing code by symbol **or by external-service tag** |
+| `list_duplication` | what got implemented N times, and which "projects" are forks |
+| `list_credentials` | variable-name registry — never returns values |
+| `get_credential` | the actual values, all candidates ranked by trustworthiness |
+| `lookup_secret` | resolve a `⟦SECRET:fp⟧` fingerprint back to its variable name |
+| `index_stats` | coverage and freshness |
+
+---
+
+## How it works
 
 ```
-~/.claude/projects/**/*.jsonl        Claude Code 自己写的会话记录
-            ↓  单遍解析
+~/.claude/projects/**/*.jsonl      transcripts Claude Code already writes
+            ↓  single pass
    ┌────────┴────────┐
-索引侧             凭证侧
-脱敏后入 FTS5      KEY=VALUE 抽进 vault.db (0600)
+ index side        credential side
+ redacted → FTS5   KEY=VALUE → vault.db (0600)
    ↓                  ↓
 index.db          vault.db          code.db
-全文检索           凭证登记表         代码符号 + 能力标签
+full text         credential        symbols +
+                  registry          capability tags
 ```
 
-中文检索用 bigram 预分词。FTS5 自带的 trigram 对两字中文词无法匹配（实测「部署」
-「打标」全部返回空），unicode61 则完全不切分。所以写入前把中文展开成相邻二字组，
-查询时做同样展开——两字词能精确命中，且仍走 FTS5 索引，保留 BM25 排序。
+CJK search uses bigram pre-tokenization. FTS5's built-in trigram cannot match two-character
+Chinese words (measured: common two-char terms returned nothing), and `unicode61` doesn't
+segment CJK at all. So CJK text is expanded into adjacent character pairs at write time and
+the query is expanded the same way — exact matches work, still on the FTS5 index, BM25
+ranking preserved.
 
 ---
 
-## 配置
+## Configuration
 
-大部分东西不用配。要调就改 `sessionmcp/config.py`：
+Most of it needs none. To tune, edit `sessionmcp/config.py`:
 
-| 项 | 说明 |
+| Setting | What it does |
 |---|---|
-| `CODE_CAPABILITY_PATTERNS` | **最值得改的一个。** 外部服务标签，决定「按服务查已有实现」认得哪些服务。删掉用不上的，加上你在用的 |
-| `PRIVATE_TITLES` | 明确不想进索引的会话标题，精确匹配 |
-| `_PRIVATE_KEYWORDS` | 私人内容启发式。命中够多且压过工作词的会话会被跳过 |
-| `CODE_PROJECT_*` | 代码索引范围。默认自动推导，见下 |
+| `CODE_CAPABILITY_PATTERNS` | **The one worth editing.** Service tags that drive "find existing implementations by service". Drop the ones you don't use, add yours |
+| `PRIVATE_TITLES` | Session titles to exclude from the index, exact match |
+| `_PRIVATE_KEYWORDS` | Heuristic for personal content; sessions that hit enough of these are skipped |
+| `CODE_PROJECT_*` | Which directories the code index scans (auto-derived by default) |
 
-### 代码索引扫哪些目录
+### Which directories get code-indexed
 
-默认自动推导：从会话记录里取最近 45 天开过 **≥2 次**会话的工作目录，按会话数
-排序取前 30 个。不写死清单是刻意的——写死会随项目增删悄悄过期，换台机器全错。
+Auto-derived: working directories with **≥2 sessions** in the last 45 days, top 30 by
+session count. Not hard-coding a list is deliberate — a hard-coded list goes stale
+silently as projects come and go, and is entirely wrong on a new machine.
 
-刚开始用 Claude Code 不久、每个项目只开过一次会话的话，这里会推导出空清单，
-代码索引就什么都不扫。手动指定：
+If you're new to Claude Code and every project has exactly one session, this derives an
+empty list and the code index scans nothing. Override:
 
 ```bash
 export SESSION_KNOWLEDGE_PROJECT_DIRS="~/proj-a:~/proj-b"
 ```
 
-### 认领「规范实现」
+### Claiming a canonical implementation
 
-`~/.claude/knowledge/canonical.json` 里可以手写「哪个文件是某个能力的规范实现」，
-生成器只读不写，不会被每日刷新冲掉。同一段逻辑第三次出现时，
-认领一份规范实现比抄第四遍强。
+`~/.claude/knowledge/canonical.json` lets you declare which file is the canonical
+implementation of a capability. The generator reads it and never overwrites it, so daily
+refreshes won't clobber your call. When the same logic shows up a third time, claiming
+one beats copying it a fourth.
 
 ---
 
-## 卸载
+## Uninstall
 
 ```bash
-bash uninstall.sh            # 摘掉 MCP 和 hook，索引保留
-bash uninstall.sh --purge    # 连索引库一起删
+bash uninstall.sh            # remove MCP + hook, keep the index
+bash uninstall.sh --purge    # remove the index too
 ```
 
 ---
 
-## 已知边界
+## Known limits
 
-- **只认 Claude Code 的会话记录**（`~/.claude/projects/**/*.jsonl`）。Cursor、
-  Copilot 那些不在范围内。
-- **脱敏是模式匹配**，覆盖常见格式，自定义格式的密钥可能漏网。定期跑
-  `verify-redaction` 抽查。
-- **代码索引只认 Python/JS/TS**（`.py .js .ts .tsx .mjs .jsx`）。
-- **首次全量索引**几百个会话大约 1-3 分钟，之后增量刷新 1-2 秒。
-- 需要 **Python 3.10+**，且自带的 sqlite3 要编译了 FTS5。macOS 系统自带的
-  Python 有时不满足，装 python.org 官方版或 `brew install python` 即可。
+- **Claude Code transcripts only** (`~/.claude/projects/**/*.jsonl`). Not Cursor, not Copilot.
+- **Redaction is pattern matching.** Common shapes are covered; custom formats can leak.
+  Run `verify-redaction` periodically.
+- **Code index reads Python/JS/TS only** (`.py .js .ts .tsx .mjs .jsx`).
+- **First full index** of a few hundred sessions takes 1–3 minutes. Incremental after that is 1–2s.
+- **Python 3.10+**, with FTS5 compiled into the bundled sqlite3. The system Python on macOS
+  sometimes lacks it — install from python.org or `brew install python`.
+
+[中文文档](README.zh-CN.md)
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
