@@ -1,0 +1,54 @@
+name: Bug report
+description: Report reproducible incorrect behavior using synthetic data
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never include real transcripts, credentials, `.env` files, or session databases.
+        Report credential exposure privately through the Security tab.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe the observable incorrect behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal synthetic reproduction
+      description: Provide commands or a small synthetic JSONL fixture.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      placeholder: git rev-parse --short HEAD
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python and operating system
+      placeholder: Python 3.14.1 on macOS 27
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have removed all real credentials and personal transcript content.
+          required: true
+        - label: This report does not disclose a security vulnerability.
+          required: true
