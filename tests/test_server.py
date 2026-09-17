@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sessionmcp import server
 from sessionmcp.indexer import connect
-from sessionmcp.server import SERVER_NAME, handle
+from sessionmcp.server import SERVER_NAME, SERVER_VERSION, handle
 
 
 class ServerProtocolTests(unittest.TestCase):
@@ -32,6 +32,7 @@ class ServerProtocolTests(unittest.TestCase):
         assert response is not None
         self.assertEqual("2025-06-18", response["result"]["protocolVersion"])
         self.assertEqual(SERVER_NAME, response["result"]["serverInfo"]["name"])
+        self.assertEqual(SERVER_VERSION, response["result"]["serverInfo"]["version"])
 
     def test_unknown_protocol_falls_back_to_default(self) -> None:
         response = handle(
