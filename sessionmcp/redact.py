@@ -318,6 +318,14 @@ def _overlaps(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
 
 
 def _collect_findings(text: str) -> list[Finding]:
+    """Find every value that must be removed from searchable text.
+
+    Placeholder classification deliberately does not participate here. It is useful when
+    ranking credential candidates in the vault, but it is too weak a safety boundary for
+    redaction: a real secret may contain marker text such as ``foo`` or ``todo``. Values
+    that match a secret literal or are assigned to a secret-classified key are therefore
+    always removed from the full-text index.
+    """
     findings: list[Finding] = []
     skip = _token_spans(text)
 
@@ -325,7 +333,7 @@ def _collect_findings(text: str) -> list[Finding]:
     for label, pattern, group in _SECRET_LITERALS:
         for match in pattern.finditer(text):
             value = match.group(group)
-            if not value or is_placeholder(value):
+            if not value:
                 continue
             if _overlaps(match.start(group), match.end(group), skip):
                 continue
@@ -347,7 +355,7 @@ def _collect_findings(text: str) -> list[Finding]:
                 continue
             raw = match.group(2)
             value = _unquote(raw)
-            if not value or is_placeholder(value):
+            if not value:
                 continue
             # 定位真实值在原文中的位置（跳过可能存在的引号）
             offset = raw.find(value)
