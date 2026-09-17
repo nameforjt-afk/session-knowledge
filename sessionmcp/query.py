@@ -193,11 +193,27 @@ def get_session(
 ) -> dict[str, Any]:
     """分页读取单个 session 的正文。"""
     meta = conn.execute(
-        "SELECT * FROM sessions WHERE session_id = ? OR session_id LIKE ?",
-        (session_id, f"{session_id}%"),
+        "SELECT * FROM sessions WHERE session_id = ?",
+        (session_id,),
     ).fetchone()
     if meta is None:
-        return {"error": f"未找到 session: {session_id}"}
+        matches = conn.execute(
+            """
+            SELECT * FROM sessions
+            WHERE substr(session_id, 1, length(?)) = ?
+            ORDER BY session_id
+            LIMIT 11
+            """,
+            (session_id, session_id),
+        ).fetchall()
+        if not matches:
+            return {"error": f"未找到 session: {session_id}"}
+        if len(matches) > 1:
+            return {
+                "error": f"session id 前缀不唯一: {session_id}",
+                "matches": [row["session_id"] for row in matches[:10]],
+            }
+        meta = matches[0]
 
     clauses = ["session_id = ?"]
     params: list[Any] = [meta["session_id"]]
