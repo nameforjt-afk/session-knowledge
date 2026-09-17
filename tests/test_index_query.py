@@ -55,6 +55,14 @@ class IndexQueryIntegrationTests(unittest.TestCase):
         self.assertEqual("alpha", hits[0]["project"])
         self.assertIn("部署", hits[0]["snippet"])
 
+    def test_cjk_phrase_does_not_match_bigrams_scattered_across_text(self) -> None:
+        self._write_session("exact", "部署流程需要灰度发布")
+        self._write_session("scattered", "部署完成。署流异常。流程结束")
+
+        hits = query.search(self.conn, "部署流程", dedupe=False)
+
+        self.assertEqual(["exact"], [hit["session_id"] for hit in hits])
+
     def test_search_filters_by_project(self) -> None:
         self._write_session("session-1", "shared deployment note", project="alpha")
         self._write_session("session-2", "shared deployment note", project="beta")
