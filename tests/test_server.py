@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
+from sessionmcp import server
+from sessionmcp.indexer import connect
 from sessionmcp.server import SERVER_NAME, handle
 
 
 class ServerProtocolTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.index_conn = connect(Path(self.temp_dir.name) / "index.db")
+        self.addCleanup(self.index_conn.close)
+        previous = server._index_conn
+        server._index_conn = self.index_conn
+        self.addCleanup(setattr, server, "_index_conn", previous)
+
     def test_initialize_negotiates_a_supported_protocol(self) -> None:
         response = handle(
             {
@@ -53,6 +66,22 @@ class ServerProtocolTests(unittest.TestCase):
         )
 
         self.assertIsNone(response)
+
+    def test_negative_search_limit_is_rejected_as_invalid_params(self) -> None:
+        response = handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "search_sessions",
+                    "arguments": {"query": "deploy", "limit": -1},
+                },
+            }
+        )
+
+        assert response is not None
+        self.assertEqual(-32602, response["error"]["code"])
 
 
 if __name__ == "__main__":
