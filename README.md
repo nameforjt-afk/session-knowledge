@@ -1,5 +1,9 @@
 # session-knowledge
 
+[![Tests](https://github.com/nameforjt-afk/session-knowledge/actions/workflows/tests.yml/badge.svg)](https://github.com/nameforjt-afk/session-knowledge/actions/workflows/tests.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 **Claude Code's memory is scoped per project directory. Your history isn't.**
 
 Every session you've ever run is already on disk in `~/.claude/projects/**/*.jsonl` —
@@ -213,6 +217,14 @@ bash uninstall.sh --purge    # remove the index too
   sometimes lacks it — install from python.org or `brew install python`.
 
 [中文文档](README.zh-CN.md)
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request. Never
+include real transcripts or credentials in public reports. Potential vulnerabilities
+should be reported privately according to [SECURITY.md](SECURITY.md).
+
+Release history is recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

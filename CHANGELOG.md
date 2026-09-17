@@ -1,0 +1,50 @@
+# Changelog
+
+All notable changes to session-knowledge are documented here.
+
+## [0.1.0] - 2026-09-17
+
+### Added
+
+- Local indexing of Claude Code transcripts with FTS5-backed English and CJK search.
+- Thirteen MCP tools for session retrieval, timelines, tool-call lookup, code discovery,
+  and credential metadata.
+- Separate permission-restricted credential vault and redacted full-text index.
+- Incremental transcript indexing, code capability tags, duplicate detection, and
+  installation/uninstallation scripts.
+- A 31-test standard-library regression suite running on Linux and macOS with Python
+  3.10 and 3.14 ([#1](https://github.com/nameforjt-afk/session-knowledge/issues/1),
+  [#2](https://github.com/nameforjt-afk/session-knowledge/pull/2)).
+- Contributor guidance, structured issue forms, pull request checks, and private security
+  reporting ([#11](https://github.com/nameforjt-afk/session-knowledge/issues/11),
+  [#12](https://github.com/nameforjt-afk/session-knowledge/pull/12)).
+
+### Fixed
+
+- Prevented placeholder-like substrings from bypassing secret redaction
+  ([#3](https://github.com/nameforjt-afk/session-knowledge/issues/3),
+  [#4](https://github.com/nameforjt-afk/session-knowledge/pull/4)).
+- Enforced adjacency and ordering for multi-bigram CJK phrase queries
+  ([#5](https://github.com/nameforjt-afk/session-knowledge/issues/5),
+  [#6](https://github.com/nameforjt-afk/session-knowledge/pull/6)).
+- Bounded every numeric MCP argument to prevent unbounded SQLite results
+  ([#7](https://github.com/nameforjt-afk/session-knowledge/issues/7),
+  [#8](https://github.com/nameforjt-afk/session-knowledge/pull/8)).
+- Rejected ambiguous short session IDs instead of returning arbitrary session content
+  ([#9](https://github.com/nameforjt-afk/session-knowledge/issues/9),
+  [#10](https://github.com/nameforjt-afk/session-knowledge/pull/10)).
+
+### Security
+
+- Searchable text now redacts every value recognized as a secret even when the value looks
+  like a placeholder. Placeholder classification remains available only for vault ranking.
+- MCP result and pagination sizes are validated before database access.
+
+### Known security boundary
+
+`vault.db` intentionally contains plaintext credential values. It is restricted to the
+current operating-system user but must never be committed, synced, or shared. Redaction is
+pattern-based; custom secret formats may still require manual review with
+`verify-redaction`.
+
+[0.1.0]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.0
