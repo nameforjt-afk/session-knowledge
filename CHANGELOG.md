@@ -2,7 +2,7 @@
 
 All notable changes to session-knowledge are documented here.
 
-## Unreleased
+## [0.1.1] - 2026-09-17
 
 ### Security
 
@@ -55,3 +55,4 @@ pattern-based; custom secret formats may still require manual review with
 `verify-redaction`.
 
 [0.1.0]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.0
+[0.1.1]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.1
