@@ -51,6 +51,34 @@ CREATE INDEX IF NOT EXISTS idx_cred_fp      ON credentials(value_fp);
 CREATE INDEX IF NOT EXISTS idx_cred_service ON credentials(service);
 CREATE INDEX IF NOT EXISTS idx_cred_source  ON credentials(source);
 
+-- Session 凭证必须保留到具体源文件的出处。credentials 是给查询用的聚合视图；
+-- 这里的一行才是可随源文件删除的最小观测单元。
+CREATE TABLE IF NOT EXISTS session_credential_observations (
+    source_path    TEXT NOT NULL,
+    source_session TEXT NOT NULL,
+    key_name       TEXT NOT NULL,
+    value          TEXT NOT NULL,
+    value_fp       TEXT NOT NULL,
+    service        TEXT NOT NULL DEFAULT 'other',
+    kind           TEXT NOT NULL DEFAULT 'identifier',
+    project        TEXT NOT NULL DEFAULT '',
+    first_seen     TEXT NOT NULL DEFAULT '',
+    last_seen      TEXT NOT NULL DEFAULT '',
+    occurrences    INTEGER NOT NULL DEFAULT 0,
+    is_placeholder INTEGER NOT NULL DEFAULT 0,
+    is_local       INTEGER NOT NULL DEFAULT 0,
+    usage_example  TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(source_path, key_name, value_fp, project)
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_cred_path
+    ON session_credential_observations(source_path);
+
+CREATE TABLE IF NOT EXISTS vault_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 -- 被判定为「不是真凭证」的指纹。索引每天都在重扫 session，光删记录没有用——
 -- 下次刷新同样的值又会被抽取回来。必须记住「这个值不要」，否则 forget 只是
 -- 把问题推迟两秒。
@@ -98,6 +126,24 @@ class VaultWriter:
             row["value_fp"]
             for row in conn.execute("SELECT value_fp FROM blocked")
         }
+
+    def requires_full_session_scan(self) -> bool:
+        """旧版 vault 没有逐文件出处，升级时必须完整重扫一次。"""
+        row = self.conn.execute(
+            "SELECT value FROM vault_meta WHERE key = 'session_observations_v1'"
+        ).fetchone()
+        return row is None
+
+    def reset_session_observations(self) -> None:
+        """开始一次可重试的完整 session 凭证重建。"""
+        self.conn.execute("DELETE FROM session_credential_observations")
+
+    def drop_session_source(self, path: Path) -> None:
+        """清掉一个仍存在但已无可索引内容的来源。"""
+        self.conn.execute(
+            "DELETE FROM session_credential_observations WHERE source_path = ?",
+            (str(path),),
+        )
 
     def _upsert(
         self,
@@ -158,19 +204,99 @@ class VaultWriter:
 
         私人 session 的凭证同样跳过——那类会话里出现的多半是个人账户信息。
         """
+        source_path = str(Path(parsed.path))
+        self.conn.execute(
+            "DELETE FROM session_credential_observations WHERE source_path = ?",
+            (source_path,),
+        )
         if parsed.is_private or not parsed.assignments:
             return 0
 
         stamp = parsed.ended_at or parsed.started_at
         for item in parsed.assignments:
-            self._upsert(
-                item,
-                project=parsed.project,
-                stamp=stamp,
-                source=SOURCE_SESSION,
-                session_id=parsed.session_id,
+            if item.fingerprint in self._blocked:
+                continue
+            self.conn.execute(
+                """
+                INSERT INTO session_credential_observations (
+                    source_path, source_session, key_name, value, value_fp,
+                    service, kind, project, first_seen, last_seen, occurrences,
+                    is_placeholder, is_local, usage_example
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?,?)
+                ON CONFLICT(source_path, key_name, value_fp, project) DO UPDATE SET
+                    occurrences    = occurrences + 1,
+                    last_seen      = MAX(last_seen, excluded.last_seen),
+                    first_seen     = MIN(first_seen, excluded.first_seen),
+                    is_placeholder = MIN(is_placeholder, excluded.is_placeholder),
+                    usage_example  = CASE
+                        WHEN length(excluded.usage_example) > length(usage_example)
+                        THEN excluded.usage_example ELSE usage_example END
+                """,
+                (
+                    source_path,
+                    parsed.session_id,
+                    item.key_name,
+                    item.value,
+                    item.fingerprint,
+                    item.service,
+                    item.kind,
+                    parsed.project,
+                    stamp,
+                    stamp,
+                    1 if item.is_placeholder else 0,
+                    1 if is_local_url(item.value) else 0,
+                    item.context,
+                ),
             )
         return len(parsed.assignments)
+
+    def finish_session_refresh(self, live_paths: set[Path]) -> int:
+        """清理已删除来源并重建 session 聚合行，返回清理的观测数。"""
+        live = {str(path) for path in live_paths}
+        stale = [
+            row["source_path"]
+            for row in self.conn.execute(
+                "SELECT DISTINCT source_path FROM session_credential_observations"
+            )
+            if row["source_path"] not in live
+        ]
+        if stale:
+            pruned = 0
+            for source_path in stale:
+                pruned += self.conn.execute(
+                    "DELETE FROM session_credential_observations WHERE source_path = ?",
+                    (source_path,),
+                ).rowcount
+        else:
+            pruned = 0
+
+        self.conn.execute("DELETE FROM credentials WHERE source = ?", (SOURCE_SESSION,))
+        self.conn.execute(
+            """
+            INSERT INTO credentials (
+                key_name, value, value_fp, service, kind, project,
+                first_seen, last_seen, occurrences, is_placeholder, is_local,
+                source, source_path, source_session, usage_example
+            )
+            SELECT
+                key_name, MAX(value), value_fp, MAX(service), MAX(kind), project,
+                MIN(first_seen), MAX(last_seen), SUM(occurrences),
+                MIN(is_placeholder), MAX(is_local), 'session',
+                CASE WHEN COUNT(DISTINCT source_path) = 1 THEN MIN(source_path) ELSE '' END,
+                CASE WHEN COUNT(DISTINCT source_session) = 1 THEN MIN(source_session) ELSE '' END,
+                MAX(usage_example)
+            FROM session_credential_observations
+            WHERE value_fp NOT IN (SELECT value_fp FROM blocked)
+            GROUP BY key_name, value_fp, project
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO vault_meta(key, value) VALUES ('session_observations_v1', 'complete')
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """
+        )
+        return pruned
 
     def write_env(
         self, assignments: list[Assignment], *, project: str, source_path: str, stamp: str
