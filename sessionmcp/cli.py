@@ -35,6 +35,9 @@ def cmd_index(args: argparse.Namespace) -> int:
     vault_conn = connect_vault()
     index_writer = IndexWriter(index_conn)
     vault_writer = VaultWriter(vault_conn)
+    rebuild_vault = vault_writer.requires_full_session_scan()
+    if rebuild_vault:
+        vault_writer.reset_session_observations()
 
     # (路径, 父 session id)；主 session 的父 id 为空
     files: list[tuple[Path, str]] = [(p, "") for p in iter_session_files()]
@@ -46,7 +49,8 @@ def cmd_index(args: argparse.Namespace) -> int:
     credentials = 0
 
     for position, (path, parent) in enumerate(files, 1):
-        if not args.force and not index_writer.needs_reindex(path):
+        reindex = args.force or index_writer.needs_reindex(path)
+        if not reindex and not rebuild_vault:
             skipped += 1
             continue
 
@@ -55,15 +59,21 @@ def cmd_index(args: argparse.Namespace) -> int:
             # 只有元数据行、没有任何对话内容的文件。这不是解析失败——报成
             # "失败" 会让人以为有 bug 要查，实际上没有任何东西可索引。
             empty += 1
+            if reindex:
+                index_writer.drop_session(path.stem)
+            vault_writer.drop_session_source(path)
             continue
 
-        index_writer.write(parsed)
+        if reindex:
+            index_writer.write(parsed)
+            done += 1
+            if parsed.is_subagent:
+                subagents += 1
+        else:
+            skipped += 1
         credentials += vault_writer.write(parsed)
-        done += 1
-        if parsed.is_subagent:
-            subagents += 1
 
-        if done % 10 == 0:
+        if position % 10 == 0:
             index_conn.commit()
             vault_conn.commit()
         print(
@@ -73,17 +83,21 @@ def cmd_index(args: argparse.Namespace) -> int:
             flush=True,
         )
 
+    live_paths = {path for path, _ in files}
+    pruned_sessions = index_writer.prune_missing(live_paths)
+    pruned_credentials = vault_writer.finish_session_refresh(live_paths)
     index_conn.commit()
     vault_conn.commit()
     print(file=sys.stderr)
 
-    if done and not args.no_optimize:
+    if (done or pruned_sessions) and not args.no_optimize:
         print("  合并索引段…", file=sys.stderr)
         index_writer.optimize()
 
     elapsed = time.time() - started
     print(
         f"完成：入库 {done}（其中子 agent {subagents}），跳过 {skipped}，空文件 {empty}，"
+        f"清理已删除 session {pruned_sessions}，清理凭证观测 {pruned_credentials}，"
         f"凭证观测 {credentials} 条，耗时 {elapsed:.1f}s"
     )
     return 0

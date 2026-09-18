@@ -2,6 +2,14 @@
 
 All notable changes to session-knowledge are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- Remove indexed content, tool calls, metadata, and session-derived credential observations
+  after their source transcript is deleted, while retaining credentials observed in other
+  live transcripts.
+
 ## [0.1.1] - 2026-09-17
 
 ### Security

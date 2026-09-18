@@ -122,6 +122,18 @@ class IndexWriter:
         self.conn.execute("DELETE FROM tool_calls WHERE session_id = ?", (session_id,))
         self.conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
 
+    def prune_missing(self, live_paths: set[Path]) -> int:
+        """删除源文件已不存在的 session，返回删除数量。"""
+        live = {str(path) for path in live_paths}
+        stale = [
+            row["session_id"]
+            for row in self.conn.execute("SELECT session_id, file_path FROM sessions")
+            if row["file_path"] not in live
+        ]
+        for session_id in stale:
+            self.drop_session(session_id)
+        return len(stale)
+
     def write(self, parsed: ParsedSession) -> None:
         """写入单个 session（先清后写，保证幂等）。"""
         self.drop_session(parsed.session_id)

@@ -93,6 +93,32 @@ class IndexQueryIntegrationTests(unittest.TestCase):
         self.assertEqual([], query.search(self.conn, "deployment"))
         self.assertEqual(1, len(query.search(self.conn, "migration")))
 
+    def test_prune_missing_removes_deleted_transcript_content(self) -> None:
+        self._write_session("deleted-session", "obsolete deployment secret")
+        source = self.root / "deleted-session.jsonl"
+        source.unlink()
+
+        pruned = self.writer.prune_missing(set())
+        self.conn.commit()
+
+        self.assertEqual(1, pruned)
+        self.assertEqual([], query.search(self.conn, "obsolete"))
+        self.assertEqual([], query.get_session(self.conn, "deleted-session").get("chunks", []))
+
+    def test_prune_missing_also_removes_private_and_subagent_metadata(self) -> None:
+        self._write_session("private-session", "private", private=True)
+        self._write_session("agent-session", "agent detail", subagent=True)
+        for name in ("private-session", "agent-session"):
+            (self.root / f"{name}.jsonl").unlink()
+
+        pruned = self.writer.prune_missing(set())
+        self.conn.commit()
+
+        self.assertEqual(2, pruned)
+        for session_id in ("private-session", "agent-session"):
+            with self.subTest(session_id=session_id):
+                self.assertIn("error", query.get_session(self.conn, session_id))
+
     def test_get_session_paginates_chunks(self) -> None:
         source = self.root / "session-page.jsonl"
         source.write_text("{}\n", encoding="utf-8")
