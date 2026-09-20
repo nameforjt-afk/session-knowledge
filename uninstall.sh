@@ -9,9 +9,12 @@ PURGE="${1:-}"
 
 PYTHON="$(command -v python3)"
 
-"$PYTHON" - "$HOME/.claude.json" <<'PY'
+"$PYTHON" - "$HOME/.claude.json" "$ROOT" <<'PY'
 import json, os, sys
-path = sys.argv[1]
+path, root = sys.argv[1], sys.argv[2]
+sys.path.insert(0, root)
+from sessionmcp.configio import atomic_write_json
+
 if not os.path.exists(path):
     sys.exit(0)
 with open(path, encoding="utf-8") as f:
@@ -19,16 +22,16 @@ with open(path, encoding="utf-8") as f:
 if data.get("mcpServers", {}).pop("session-knowledge", None) is None:
     print("  MCP 注册本来就不在")
 else:
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    atomic_write_json(path, data)
     print("  ✓ 已摘掉 MCP 注册")
 PY
 
-"$PYTHON" - "$HOME/.claude/settings.json" "$ROOT/refresh.sh" <<'PY'
+"$PYTHON" - "$HOME/.claude/settings.json" "$ROOT/refresh.sh" "$ROOT" <<'PY'
 import json, os, sys
-path, script = sys.argv[1], sys.argv[2]
+path, script, root = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.path.insert(0, root)
+from sessionmcp.configio import atomic_write_json
+
 if not os.path.exists(path):
     sys.exit(0)
 with open(path, encoding="utf-8") as f:
@@ -48,18 +51,15 @@ else:
         data["hooks"].pop("SessionStart", None)
     if not data.get("hooks"):
         data.pop("hooks", None)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    atomic_write_json(path, data)
     print("  ✓ 已摘掉 SessionStart hook")
 PY
 
 if [ "$PURGE" = "--purge" ]; then
     rm -rf "$DATA"
-    echo "  ✓ 索引库已删除（$DATA）"
+    echo "  ✓ 索引库已删除（${DATA}）"
 else
-    echo "  索引库保留在 $DATA，要一并删除请跑：bash uninstall.sh --purge"
+    echo "  索引库保留在 ${DATA}，要一并删除请跑：bash uninstall.sh --purge"
 fi
 
 echo "卸载完成。重启 Claude Code 生效。"

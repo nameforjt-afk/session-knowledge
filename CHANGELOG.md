@@ -9,6 +9,9 @@ All notable changes to session-knowledge are documented here.
 - Remove indexed content, tool calls, metadata, and session-derived credential observations
   after their source transcript is deleted, while retaining credentials observed in other
   live transcripts.
+- Preserve private Claude configuration file permissions during uninstall and complete
+  both standard and `--purge` removal without a nounset error
+  ([#21](https://github.com/nameforjt-afk/session-knowledge/issues/21)).
 
 ## [0.1.1] - 2026-09-17
 
