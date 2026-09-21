@@ -15,13 +15,13 @@ DISCORD_TOKEN 11 个、FEISHU_APP_ID 9 个），原因是多个飞书应用、�
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
 from . import config
+from .dbio import prepare_private_database, restrict_sqlite_artifacts
 from .parse import ParsedSession
 from .redact import Assignment, is_local_url
 
@@ -104,16 +104,13 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     文件，它们的权限不受这里的 chmod 保护，等于在旁边留了个明文副本。
     """
     target = path or config.VAULT_DB
-    target.parent.mkdir(parents=True, exist_ok=True)
-
-    existed = target.exists()
+    prepare_private_database(target)
     conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     conn.commit()
 
-    if not existed or (target.stat().st_mode & 0o077):
-        os.chmod(target, 0o600)
+    restrict_sqlite_artifacts(target)
     return conn
 
 

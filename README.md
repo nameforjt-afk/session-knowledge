@@ -44,6 +44,10 @@ tokens, JWTs, GitHub PATs, passwords inside connection strings) are replaced wit
 `⟦SECRET:fingerprint⟧` before they are written. Plaintext lives only in `vault.db`
 at mode 0600, and only an explicit `creds get` returns it.
 
+The transcript and code indexes still contain sensitive local context even after
+redaction. Every generated SQLite database and WAL/SHM sidecar is restricted to mode
+0600, but the index directory should still be treated as private data.
+
 Redaction is pattern matching, not magic. Custom-format secrets can slip through.
 `verify-redaction` spot-checks for leaks.
 

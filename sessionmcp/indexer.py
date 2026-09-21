@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from . import config
+from .dbio import prepare_private_database, restrict_sqlite_artifacts
 from .parse import ParsedSession
 from .tokenize import tokenize
 
@@ -88,10 +89,11 @@ CREATE INDEX IF NOT EXISTS idx_tools_error   ON tool_calls(is_error);
 def connect(path: Path | None = None) -> sqlite3.Connection:
     """打开索引库，必要时建表。"""
     target = path or config.INDEX_DB
-    target.parent.mkdir(parents=True, exist_ok=True)
+    prepare_private_database(target)
     conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    restrict_sqlite_artifacts(target)
     return conn
 
 

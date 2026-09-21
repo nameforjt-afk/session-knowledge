@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from . import config
+from .dbio import prepare_private_database, restrict_sqlite_artifacts
 
 SCHEMA = """
 PRAGMA journal_mode = WAL;
@@ -109,10 +110,11 @@ class ParsedFile:
 
 def connect(path: Path | None = None) -> sqlite3.Connection:
     target = path or config.CODE_DB
-    target.parent.mkdir(parents=True, exist_ok=True)
+    prepare_private_database(target)
     conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    restrict_sqlite_artifacts(target)
     return conn
 
 
