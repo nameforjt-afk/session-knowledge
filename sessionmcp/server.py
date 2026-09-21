@@ -16,14 +16,14 @@ import json
 import sys
 from typing import Any, Callable
 
-from . import config
+from . import __version__, config
 from . import query as q
 from . import vault as v
 from .indexer import connect as connect_index
 from .vault import connect as connect_vault
 
 SERVER_NAME = "session-knowledge"
-SERVER_VERSION = "0.1.1"
+SERVER_VERSION = __version__
 DEFAULT_PROTOCOL = "2024-11-05"
 SUPPORTED_PROTOCOLS = {"2024-11-05", "2025-03-26", "2025-06-18"}
 

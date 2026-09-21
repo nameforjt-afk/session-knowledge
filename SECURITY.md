@@ -19,14 +19,15 @@ private until a fix is available and coordinated disclosure is appropriate.
 
 ## Supported versions
 
-Security fixes are applied to the latest code on `main`. Until versioned releases are
-published, users should update to the latest commit before reporting an already-fixed
-problem.
+Security fixes are applied to the latest release and to `main`. Users should update to the
+latest release before reporting an already-fixed problem.
 
 ## Security boundaries
 
 - Redaction is pattern-based and cannot guarantee detection of every custom secret format.
 - `vault.db` intentionally contains plaintext values and must never be synced or shared.
+- Transcript and code indexes contain sensitive local context even after redaction. Their
+  database and SQLite sidecar files are restricted to mode 0600.
 - Local processes running as the same operating-system user may be able to read the vault.
 - Search results should contain fingerprints rather than plaintext secrets; run
   `verify-redaction` periodically to audit the index.

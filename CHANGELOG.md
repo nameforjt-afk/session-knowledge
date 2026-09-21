@@ -4,14 +4,25 @@ All notable changes to session-knowledge are documented here.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-21
+
 ### Fixed
 
 - Remove indexed content, tool calls, metadata, and session-derived credential observations
   after their source transcript is deleted, while retaining credentials observed in other
-  live transcripts.
+  live transcripts
+  ([#15](https://github.com/nameforjt-afk/session-knowledge/issues/15),
+  [#20](https://github.com/nameforjt-afk/session-knowledge/pull/20)).
 - Preserve private Claude configuration file permissions during uninstall and complete
   both standard and `--purge` removal without a nounset error
-  ([#21](https://github.com/nameforjt-afk/session-knowledge/issues/21)).
+  ([#21](https://github.com/nameforjt-afk/session-knowledge/issues/21),
+  [#22](https://github.com/nameforjt-afk/session-knowledge/pull/22)).
+- Keep the MCP server version synchronized with the package version from a single source.
+
+### Security
+
+- Restrict transcript and code indexes, including SQLite WAL/SHM sidecars, to mode 0600.
+  Existing database permissions are tightened automatically the next time each index opens.
 
 ## [0.1.1] - 2026-09-17
 
@@ -67,3 +78,4 @@ pattern-based; custom secret formats may still require manual review with
 
 [0.1.0]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.0
 [0.1.1]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.1
+[0.1.2]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.2
