@@ -4,6 +4,12 @@ All notable changes to session-knowledge are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve legitimate user instructions that begin with HTML, XML, or JSX markup while
+  continuing to exclude known Claude Code system envelopes
+  ([#24](https://github.com/nameforjt-afk/session-knowledge/issues/24)).
+
 ## [0.1.2] - 2026-09-21
 
 ### Fixed
