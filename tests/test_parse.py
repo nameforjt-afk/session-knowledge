@@ -124,6 +124,52 @@ class ParseSessionTests(unittest.TestCase):
         assert parsed is not None
         self.assertEqual(["valid instruction"], [chunk.text for chunk in parsed.chunks])
 
+    def test_markup_first_user_instruction_is_preserved(self) -> None:
+        temp_dir, path = self._write_session(
+            [
+                {
+                    "type": "user",
+                    "message": {"content": "<div>Why is this layout broken?</div>"},
+                }
+            ]
+        )
+        self.addCleanup(temp_dir.cleanup)
+
+        parsed = parse_session(path)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(
+            ["<div>Why is this layout broken?</div>"],
+            [chunk.text for chunk in parsed.chunks],
+        )
+
+    def test_known_system_markup_is_ignored(self) -> None:
+        temp_dir, path = self._write_session(
+            [
+                {
+                    "type": "user",
+                    "message": {
+                        "content": "<system-reminder>Internal context only.</system-reminder>"
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {"content": "Keep this real instruction."},
+                },
+            ]
+        )
+        self.addCleanup(temp_dir.cleanup)
+
+        parsed = parse_session(path)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(
+            ["Keep this real instruction."],
+            [chunk.text for chunk in parsed.chunks],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -31,6 +32,30 @@ KIND_TOOL_CALL = "tool_call"
 KIND_TOOL_ERROR = "tool_error"
 
 _CONTINUED_MARKER = "being continued from a previous conversation"
+
+# Claude Code serializes several internal events as string user messages wrapped in
+# markup. Filter those known envelopes by name instead of dropping every message that
+# starts with ``<``: real HTML, XML, and JSX questions use the same first character.
+_INJECTED_USER_TAGS = frozenset(
+    {
+        "agent-message",
+        "artifact-content-authored-by-others",
+        "bash-input",
+        "command-message",
+        "command-name",
+        "cross-session-message",
+        "local-command-caveat",
+        "local-command-stderr",
+        "local-command-stdout",
+        "persisted-output",
+        "retrieval_status",
+        "scheduled-task",
+        "system-reminder",
+        "task-notification",
+        "tool_use_error",
+    }
+)
+_LEADING_TAG = re.compile(r"^<([A-Za-z][\w-]*)\b")
 
 # 单条工具结果里用于凭证抽取的最大扫描长度。工具结果总量 82M 字符，是全量数据的
 # 大头，不设上限会被个别几十万字的输出拖住；取 200KB 足以覆盖任何 .env 或接口响应。
@@ -239,7 +264,11 @@ def parse_session(path: Path, *, parent_session_id: str = "") -> ParsedSession |
                     stripped = content.strip()
                     if not stripped:
                         continue
-                    if stripped.startswith("<") or _CONTINUED_MARKER in stripped[:120]:
+                    leading_tag = _LEADING_TAG.match(stripped)
+                    if (
+                        leading_tag is not None
+                        and leading_tag.group(1) in _INJECTED_USER_TAGS
+                    ) or _CONTINUED_MARKER in stripped[:120]:
                         continue
                     if record.get("isMeta"):
                         continue
