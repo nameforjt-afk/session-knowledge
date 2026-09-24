@@ -9,6 +9,9 @@ All notable changes to session-knowledge are documented here.
 - Preserve legitimate user instructions that begin with HTML, XML, or JSX markup while
   continuing to exclude known Claude Code system envelopes
   ([#24](https://github.com/nameforjt-afk/session-knowledge/issues/24)).
+- Refresh environment and code indexes once their shared stamp is older than 24 hours,
+  instead of waiting until it is nearly 48 hours old
+  ([#26](https://github.com/nameforjt-afk/session-knowledge/issues/26)).
 
 ## [0.1.2] - 2026-09-21
 

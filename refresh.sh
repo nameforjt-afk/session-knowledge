@@ -54,7 +54,7 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
     # .env 与代码索引每天各扫一次。代码不像 session 那样每分钟变，每次开会话都全扫
     # 没必要；.env 改动更少。共用一个时间戳，一起节流。
-    if [ ! -f "$ENV_STAMP" ] || [ -n "$(find "$ENV_STAMP" -mtime +1 2>/dev/null)" ]; then
+    if [ ! -f "$ENV_STAMP" ] || [ -n "$(find "$ENV_STAMP" -mmin +1440 2>/dev/null)" ]; then
         echo "--- 距上次超过 24 小时，重扫 .env 与代码索引 ---"
         "$PYTHON" -m sessionmcp.cli scan-env 2>&1 | tail -3
         "$PYTHON" -m sessionmcp.cli code index 2>&1 | tail -2
