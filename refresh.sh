@@ -57,8 +57,14 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
     if [ ! -f "$ENV_STAMP" ] || [ -n "$(find "$ENV_STAMP" -mmin +1440 2>/dev/null)" ]; then
         echo "--- 距上次超过 24 小时，重扫 .env 与代码索引 ---"
         "$PYTHON" -m sessionmcp.cli scan-env 2>&1 | tail -3
+        env_status=${PIPESTATUS[0]}
         "$PYTHON" -m sessionmcp.cli code index 2>&1 | tail -2
-        touch "$ENV_STAMP"
+        code_status=${PIPESTATUS[0]}
+        if [ "$env_status" -eq 0 ] && [ "$code_status" -eq 0 ]; then
+            touch "$ENV_STAMP"
+        else
+            echo "--- 慢速索引刷新失败（env=${env_status} code=${code_status}），下次会话重试 ---"
+        fi
     fi
 } >> "$LOG" 2>&1
 
