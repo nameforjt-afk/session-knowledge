@@ -12,6 +12,9 @@ All notable changes to session-knowledge are documented here.
 - Refresh environment and code indexes once their shared stamp is older than 24 hours,
   instead of waiting until it is nearly 48 hours old
   ([#26](https://github.com/nameforjt-afk/session-knowledge/issues/26)).
+- Retry failed environment or code index refreshes on the next session instead of marking
+  an unsuccessful run as fresh for another day
+  ([#28](https://github.com/nameforjt-afk/session-knowledge/issues/28)).
 
 ## [0.1.2] - 2026-09-21
 
