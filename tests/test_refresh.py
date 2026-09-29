@@ -102,6 +102,29 @@ class RefreshIntegrationTests(unittest.TestCase):
             log = Path(env["HOME"]) / ".claude" / "session-index" / "refresh.log"
             self.assertIn("慢速索引刷新失败", log.read_text(encoding="utf-8"))
 
+    def test_refresh_repairs_private_data_and_log_permissions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            script, _, env = self._prepare_refresh(temp)
+            data = Path(env["HOME"]) / ".claude" / "session-index"
+            data.chmod(0o755)
+
+            result = subprocess.run(
+                ["bash", str(script)],
+                cwd=Path(temp),
+                env=env,
+                text=True,
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(0o700, stat.S_IMODE(data.stat().st_mode))
+            self.assertEqual(
+                0o600,
+                stat.S_IMODE((data / "refresh.log").stat().st_mode),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

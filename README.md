@@ -45,8 +45,8 @@ tokens, JWTs, GitHub PATs, passwords inside connection strings) are replaced wit
 at mode 0600, and only an explicit `creds get` returns it.
 
 The transcript and code indexes still contain sensitive local context even after
-redaction. Every generated SQLite database and WAL/SHM sidecar is restricted to mode
-0600, but the index directory should still be treated as private data.
+redaction. The index directory is restricted to mode 0700; every generated SQLite
+database, WAL/SHM sidecar, and refresh log is restricted to mode 0600.
 
 Redaction is pattern matching, not magic. Custom-format secrets can slip through.
 `verify-redaction` spot-checks for leaks.
