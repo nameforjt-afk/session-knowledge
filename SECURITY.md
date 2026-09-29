@@ -27,7 +27,8 @@ latest release before reporting an already-fixed problem.
 - Redaction is pattern-based and cannot guarantee detection of every custom secret format.
 - `vault.db` intentionally contains plaintext values and must never be synced or shared.
 - Transcript and code indexes contain sensitive local context even after redaction. Their
-  database and SQLite sidecar files are restricted to mode 0600.
+  parent directory is restricted to mode 0700; database files, SQLite sidecars, and the
+  refresh log are restricted to mode 0600.
 - Local processes running as the same operating-system user may be able to read the vault.
 - Search results should contain fingerprints rather than plaintext secrets; run
   `verify-redaction` periodically to audit the index.

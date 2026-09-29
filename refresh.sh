@@ -9,6 +9,7 @@
 # .env 扫描与代码索引单独节流到每天一次——它们不像 session 那样每分钟变。
 
 set -u
+umask 077
 
 # 脚本自己所在目录就是安装位置，不写死——装到哪儿都能跑。
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +18,10 @@ LOG="$DATA/refresh.log"
 LOCK="$DATA/.refresh.lock"
 ENV_STAMP="$DATA/.last-env-scan"
 
-mkdir -p "$DATA"
+mkdir -p "$DATA" 2>/dev/null || exit 0
+chmod 700 "$DATA" 2>/dev/null || exit 0
+touch "$LOG" 2>/dev/null || exit 0
+chmod 600 "$LOG" 2>/dev/null || exit 0
 
 # install.sh 会把检测到的 python3 绝对路径写进这个文件。hook 的 PATH 可能很窄，
 # 光靠 command -v 有时找不到；但也不能写死版本号路径——Python 升级后会静默失效。

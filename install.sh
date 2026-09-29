@@ -3,6 +3,7 @@
 # 重复运行是安全的，不会重复添加 hook，也不会动你已有的其它配置。
 
 set -euo pipefail
+umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
@@ -113,6 +114,7 @@ PY
 say "[4/5] 建立索引（第一次要全量扫，几百个 session 大约 1-3 分钟）"
 
 mkdir -p "$DATA"
+chmod 700 "$DATA"
 cd "$ROOT"
 "$PYTHON" -m sessionmcp.cli index
 "$PYTHON" -m sessionmcp.cli scan-env  2>/dev/null | tail -2 || warn ".env 扫描跳过（不影响检索）"

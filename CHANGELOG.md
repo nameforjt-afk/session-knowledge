@@ -4,6 +4,8 @@ All notable changes to session-knowledge are documented here.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-29
+
 ### Fixed
 
 - Preserve legitimate user instructions that begin with HTML, XML, or JSX markup while
@@ -15,6 +17,11 @@ All notable changes to session-knowledge are documented here.
 - Retry failed environment or code index refreshes on the next session instead of marking
   an unsuccessful run as fresh for another day
   ([#28](https://github.com/nameforjt-afk/session-knowledge/issues/28)).
+
+### Security
+
+- Restrict the index directory to mode 0700 and the refresh log to mode 0600, repairing
+  permissions for existing installations on the next refresh.
 
 ## [0.1.2] - 2026-09-21
 
@@ -91,3 +98,4 @@ pattern-based; custom secret formats may still require manual review with
 [0.1.0]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.0
 [0.1.1]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.1
 [0.1.2]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.2
+[0.1.3]: https://github.com/nameforjt-afk/session-knowledge/releases/tag/v0.1.3
