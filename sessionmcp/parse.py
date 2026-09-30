@@ -204,6 +204,22 @@ def parse_session(path: Path, *, parent_session_id: str = "") -> ParsedSession |
     pending: dict[str, ToolCall] = {}
     user_text_parts: list[str] = []
 
+    def emit_user_text(text: str, timestamp: str, *, is_meta: bool = False) -> None:
+        nonlocal seq
+        stripped = text.strip()
+        if not stripped or is_meta:
+            return
+        leading_tag = _LEADING_TAG.match(stripped)
+        if (
+            leading_tag is not None
+            and leading_tag.group(1) in _INJECTED_USER_TAGS
+        ) or _CONTINUED_MARKER in stripped[:120]:
+            return
+
+        parsed.user_records += 1
+        user_text_parts.append(stripped[:2000])
+        seq = _emit(parsed, seq, timestamp, KIND_USER, stripped)
+
     try:
         handle = path.open(encoding="utf-8", errors="replace")
     except OSError:
@@ -261,25 +277,20 @@ def parse_session(path: Path, *, parent_session_id: str = "") -> ParsedSession |
                         seq = _emit(parsed, seq, timestamp, KIND_COMPACT, content)
                         continue
 
-                    stripped = content.strip()
-                    if not stripped:
-                        continue
-                    leading_tag = _LEADING_TAG.match(stripped)
-                    if (
-                        leading_tag is not None
-                        and leading_tag.group(1) in _INJECTED_USER_TAGS
-                    ) or _CONTINUED_MARKER in stripped[:120]:
-                        continue
-                    if record.get("isMeta"):
-                        continue
-
-                    parsed.user_records += 1
-                    user_text_parts.append(stripped[:2000])
-                    seq = _emit(parsed, seq, timestamp, KIND_USER, stripped)
+                    emit_user_text(content, timestamp, is_meta=bool(record.get("isMeta")))
 
                 elif isinstance(content, list):
                     for block in content:
                         if not isinstance(block, dict):
+                            continue
+                        if block.get("type") == "text":
+                            text = block.get("text")
+                            if isinstance(text, str):
+                                emit_user_text(
+                                    text,
+                                    timestamp,
+                                    is_meta=bool(record.get("isMeta")),
+                                )
                             continue
                         if block.get("type") != "tool_result":
                             continue
