@@ -170,6 +170,60 @@ class ParseSessionTests(unittest.TestCase):
             [chunk.text for chunk in parsed.chunks],
         )
 
+    def test_array_form_user_text_is_preserved(self) -> None:
+        temp_dir, path = self._write_session(
+            [
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "Please fix this layout."}
+                        ]
+                    },
+                }
+            ]
+        )
+        self.addCleanup(temp_dir.cleanup)
+
+        parsed = parse_session(path)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(
+            ["Please fix this layout."],
+            [chunk.text for chunk in parsed.chunks],
+        )
+        self.assertEqual(1, parsed.user_records)
+
+    def test_array_form_meta_text_is_ignored(self) -> None:
+        temp_dir, path = self._write_session(
+            [
+                {
+                    "type": "user",
+                    "isMeta": True,
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "Injected internal context."}
+                        ]
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {"content": "Keep this instruction."},
+                },
+            ]
+        )
+        self.addCleanup(temp_dir.cleanup)
+
+        parsed = parse_session(path)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(
+            ["Keep this instruction."],
+            [chunk.text for chunk in parsed.chunks],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

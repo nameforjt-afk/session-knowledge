@@ -4,6 +4,12 @@ All notable changes to session-knowledge are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Index legitimate text blocks from array-form user messages while continuing to exclude
+  meta and known system content
+  ([#31](https://github.com/nameforjt-afk/session-knowledge/issues/31)).
+
 ## [0.1.3] - 2026-09-29
 
 ### Fixed
