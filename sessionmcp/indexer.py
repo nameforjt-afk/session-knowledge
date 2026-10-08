@@ -24,8 +24,15 @@ from .dbio import prepare_private_database, restrict_sqlite_artifacts
 from .parse import ParsedSession
 from .tokenize import tokenize
 
+INDEX_CONTENT_VERSION = "1"
+
 SCHEMA = """
 PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS index_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS sessions (
     session_id      TEXT PRIMARY KEY,
@@ -102,6 +109,23 @@ class IndexWriter:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
+
+    def requires_full_reindex(self) -> bool:
+        """Whether stored content predates the current parser/tokenizer behavior."""
+        row = self.conn.execute(
+            "SELECT value FROM index_meta WHERE key = 'content_version'"
+        ).fetchone()
+        return row is None or row["value"] != INDEX_CONTENT_VERSION
+
+    def mark_content_current(self) -> None:
+        """Mark a completed refresh as using the current content format."""
+        self.conn.execute(
+            """
+            INSERT INTO index_meta(key, value) VALUES ('content_version', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (INDEX_CONTENT_VERSION,),
+        )
 
     def needs_reindex(self, path: Path) -> bool:
         """文件自上次入库后是否变动过。

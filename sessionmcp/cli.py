@@ -35,6 +35,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     vault_conn = connect_vault()
     index_writer = IndexWriter(index_conn)
     vault_writer = VaultWriter(vault_conn)
+    rebuild_index = index_writer.requires_full_reindex()
     rebuild_vault = vault_writer.requires_full_session_scan()
     if rebuild_vault:
         vault_writer.reset_session_observations()
@@ -49,7 +50,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     credentials = 0
 
     for position, (path, parent) in enumerate(files, 1):
-        reindex = args.force or index_writer.needs_reindex(path)
+        reindex = args.force or rebuild_index or index_writer.needs_reindex(path)
         if not reindex and not rebuild_vault:
             skipped += 1
             continue
@@ -86,6 +87,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     live_paths = {path for path, _ in files}
     pruned_sessions = index_writer.prune_missing(live_paths)
     pruned_credentials = vault_writer.finish_session_refresh(live_paths)
+    index_writer.mark_content_current()
     index_conn.commit()
     vault_conn.commit()
     print(file=sys.stderr)

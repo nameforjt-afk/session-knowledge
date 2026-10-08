@@ -9,6 +9,9 @@ All notable changes to session-knowledge are documented here.
 - Index legitimate text blocks from array-form user messages while continuing to exclude
   meta and known system content
   ([#31](https://github.com/nameforjt-afk/session-knowledge/issues/31)).
+- Automatically perform a one-time full transcript reindex when parser, redaction, or
+  tokenization changes make cached content stale
+  ([#34](https://github.com/nameforjt-afk/session-knowledge/issues/34)).
 
 ## [0.1.3] - 2026-09-29
 
