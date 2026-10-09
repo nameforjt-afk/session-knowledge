@@ -193,7 +193,7 @@ def get_session(
 ) -> dict[str, Any]:
     """分页读取单个 session 的正文。"""
     meta = conn.execute(
-        "SELECT * FROM sessions WHERE session_id = ?",
+        "SELECT * FROM sessions WHERE session_id = ? AND is_private = 0",
         (session_id,),
     ).fetchone()
     if meta is None:
@@ -201,6 +201,7 @@ def get_session(
             """
             SELECT * FROM sessions
             WHERE substr(session_id, 1, length(?)) = ?
+              AND is_private = 0
             ORDER BY session_id
             LIMIT 11
             """,

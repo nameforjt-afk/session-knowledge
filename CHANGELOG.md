@@ -4,6 +4,12 @@ All notable changes to session-knowledge are documented here.
 
 ## [Unreleased]
 
+### Security
+
+- Keep private session titles, project paths, branches, timestamps, and identifiers out of
+  direct and prefix-based session retrieval
+  ([#36](https://github.com/nameforjt-afk/session-knowledge/issues/36)).
+
 ### Fixed
 
 - Index legitimate text blocks from array-form user messages while continuing to exclude

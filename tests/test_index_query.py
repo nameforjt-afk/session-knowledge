@@ -76,6 +76,10 @@ class IndexQueryIntegrationTests(unittest.TestCase):
 
         self.assertEqual([], query.search(self.conn, "medical"))
         self.assertEqual([], query.list_sessions(self.conn))
+        self.assertIn("error", query.get_session(self.conn, "private-1"))
+        prefix_result = query.get_session(self.conn, "private")
+        self.assertIn("error", prefix_result)
+        self.assertNotIn("matches", prefix_result)
 
     def test_duplicate_content_is_collapsed(self) -> None:
         self._write_session("session-1", "same deployment guidance")
