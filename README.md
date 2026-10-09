@@ -181,8 +181,8 @@ Most of it needs none. To tune, edit `sessionmcp/config.py`:
 | Setting | What it does |
 |---|---|
 | `CODE_CAPABILITY_PATTERNS` | **The one worth editing.** Service tags that drive "find existing implementations by service". Drop the ones you don't use, add yours |
-| `PRIVATE_TITLES` | Session titles to exclude from the index, exact match |
-| `_PRIVATE_KEYWORDS` | Heuristic for personal content; sessions that hit enough of these are skipped |
+| `PRIVATE_TITLES` | Session titles to exclude from search and retrieval, exact match |
+| `_PRIVATE_KEYWORDS` | Heuristic for personal content; matching sessions are hidden from search and retrieval |
 | `CODE_PROJECT_*` | Which directories the code index scans (auto-derived by default) |
 
 ### Which directories get code-indexed

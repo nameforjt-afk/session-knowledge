@@ -141,8 +141,8 @@ index.db          vault.db          code.db
 | 项 | 说明 |
 |---|---|
 | `CODE_CAPABILITY_PATTERNS` | **最值得改的一个。** 外部服务标签，决定「按服务查已有实现」认得哪些服务。删掉用不上的，加上你在用的 |
-| `PRIVATE_TITLES` | 明确不想进索引的会话标题，精确匹配 |
-| `_PRIVATE_KEYWORDS` | 私人内容启发式。命中够多且压过工作词的会话会被跳过 |
+| `PRIVATE_TITLES` | 明确不想被搜索或读取的会话标题，精确匹配 |
+| `_PRIVATE_KEYWORDS` | 私人内容启发式。命中的会话不会出现在搜索和读取结果中 |
 | `CODE_PROJECT_*` | 代码索引范围。默认自动推导，见下 |
 
 ### 代码索引扫哪些目录
