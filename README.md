@@ -82,6 +82,8 @@ A hook refreshes the index incrementally on each Claude Code start (async, non-b
 usually 1–2s). Ask questions normally; Claude reaches for the tools on its own.
 When an upgrade changes parsing, redaction, or tokenization, the next refresh performs one
 automatic full rebuild and then returns to incremental updates.
+Code parser and capability-rule upgrades likewise trigger one automatic full code-index
+rebuild, preventing unchanged source files from retaining stale symbols or tags.
 
 Deleting a transcript removes its searchable text, tool calls, metadata, and session-only
 credential observations on the next refresh. Credentials that still occur in another live

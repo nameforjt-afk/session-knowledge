@@ -163,11 +163,12 @@ def cmd_code(args: argparse.Namespace) -> int:
 
     if args.code_action == "index":
         writer = ci.CodeWriter(conn)
+        rebuild = writer.requires_full_reindex()
         files = list(ci.iter_code_files())
         started = time.time()
         done = skipped = 0
         for path, project in files:
-            if not args.force and not writer.needs_reindex(path):
+            if not args.force and not rebuild and not writer.needs_reindex(path):
                 skipped += 1
                 continue
             parsed = ci.parse_file(path, project)
@@ -176,8 +177,9 @@ def cmd_code(args: argparse.Namespace) -> int:
             writer.write(parsed)
             done += 1
         pruned = writer.prune_missing()
-        conn.commit()
         target = ci.write_knowledge(conn)
+        writer.mark_content_current()
+        conn.commit()
         print(
             f"完成：入库 {done}，跳过 {skipped}，清理已删除 {pruned}，"
             f"耗时 {time.time() - started:.1f}s"
