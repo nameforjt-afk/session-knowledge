@@ -18,6 +18,9 @@ All notable changes to session-knowledge are documented here.
 - Automatically perform a one-time full transcript reindex when parser, redaction, or
   tokenization changes make cached content stale
   ([#34](https://github.com/nameforjt-afk/session-knowledge/issues/34)).
+- Automatically perform a one-time full code reindex when symbol parsing, import parsing,
+  or capability rules change, so unchanged files cannot retain stale derived data
+  ([#38](https://github.com/nameforjt-afk/session-knowledge/issues/38)).
 
 ## [0.1.3] - 2026-09-29
 

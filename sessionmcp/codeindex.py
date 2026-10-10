@@ -33,8 +33,15 @@ from typing import Any, Iterator
 from . import config
 from .dbio import prepare_private_database, restrict_sqlite_artifacts
 
+CODE_INDEX_CONTENT_VERSION = "1"
+
 SCHEMA = """
 PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS code_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS files (
     file_id    INTEGER PRIMARY KEY,
@@ -271,6 +278,23 @@ def parse_file(path: Path, project: str) -> ParsedFile | None:
 class CodeWriter:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
+
+    def requires_full_reindex(self) -> bool:
+        """Whether stored rows predate current parsing and capability rules."""
+        row = self.conn.execute(
+            "SELECT value FROM code_meta WHERE key = 'content_version'"
+        ).fetchone()
+        return row is None or row["value"] != CODE_INDEX_CONTENT_VERSION
+
+    def mark_content_current(self) -> None:
+        """Mark a completed code refresh as using the current derived format."""
+        self.conn.execute(
+            """
+            INSERT INTO code_meta(key, value) VALUES ('content_version', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (CODE_INDEX_CONTENT_VERSION,),
+        )
 
     def needs_reindex(self, path: Path) -> bool:
         row = self.conn.execute(
