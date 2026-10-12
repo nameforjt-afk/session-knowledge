@@ -21,6 +21,9 @@ All notable changes to session-knowledge are documented here.
 - Automatically perform a one-time full code reindex when symbol parsing, import parsing,
   or capability rules change, so unchanged files cannot retain stale derived data
   ([#38](https://github.com/nameforjt-afk/session-knowledge/issues/38)).
+- Keep the code-index content version outdated and report failure when any discovered source
+  cannot be parsed, allowing the scheduled refresh to retry instead of accepting stale rows
+  ([#40](https://github.com/nameforjt-afk/session-knowledge/issues/40)).
 
 ## [0.1.3] - 2026-09-29
 
