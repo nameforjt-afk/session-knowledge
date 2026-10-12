@@ -166,26 +166,29 @@ def cmd_code(args: argparse.Namespace) -> int:
         rebuild = writer.requires_full_reindex()
         files = list(ci.iter_code_files())
         started = time.time()
-        done = skipped = 0
+        done = skipped = parse_failures = 0
         for path, project in files:
             if not args.force and not rebuild and not writer.needs_reindex(path):
                 skipped += 1
                 continue
             parsed = ci.parse_file(path, project)
             if parsed is None:
+                parse_failures += 1
                 continue
             writer.write(parsed)
             done += 1
         pruned = writer.prune_missing()
         target = ci.write_knowledge(conn)
-        writer.mark_content_current()
+        if parse_failures == 0:
+            writer.mark_content_current()
         conn.commit()
         print(
             f"完成：入库 {done}，跳过 {skipped}，清理已删除 {pruned}，"
+            f"解析失败 {parse_failures}，"
             f"耗时 {time.time() - started:.1f}s"
         )
         print(f"知识文件已生成：{target}")
-        return 0
+        return 1 if parse_failures else 0
 
     if args.code_action == "find":
         payload = ci.find_implementation(
