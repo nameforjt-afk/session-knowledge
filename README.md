@@ -224,6 +224,10 @@ bash uninstall.sh --purge    # remove the index too
 - **Redaction is pattern matching.** Common shapes are covered; custom formats can leak.
   Run `verify-redaction` periodically.
 - **Code index reads Python/JS/TS only** (`.py .js .ts .tsx .mjs .jsx`).
+  Files changed during reading are skipped and the refresh reports failure so a later run
+  can retry. This update triggers a one-time full code reindex to repair cached snapshots.
+- **JS/TS extraction is partial.** Regex misses some arrow functions and typed declarations.
+  Fork suggestions use shared paths and line counts; compare source before archiving copies.
 - **First full index** of a few hundred sessions takes 1–3 minutes. Incremental after that is 1–2s.
 - **Python 3.10+**, with FTS5 compiled into the bundled sqlite3. The system Python on macOS
   sometimes lacks it — install from python.org or `brew install python`.

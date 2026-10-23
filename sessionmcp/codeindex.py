@@ -14,8 +14,8 @@
 漏。而是「不知道有人实现过飞书鉴权」。按服务打标签能直接回答后者，且零 embedding
 成本。这也是这里不上向量检索的原因：中文加大量专有名词，关键词加标签比 embedding 稳。
 
-Python 走 ast 解析（拿得到准确签名和类方法），JS/TS 走正则——语法太多变体，
-正则的召回反而比半吊子的解析器高。
+Python 走 ast 解析（提取签名和类方法），JS/TS 用正则覆盖部分常见声明。
+后者保持零依赖，但会漏掉单参数无括号、类型标注等写法。
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from typing import Any, Iterator
 from . import config
 from .dbio import prepare_private_database, restrict_sqlite_artifacts
 
-CODE_INDEX_CONTENT_VERSION = "1"
+CODE_INDEX_CONTENT_VERSION = "2"
 
 SCHEMA = """
 PRAGMA journal_mode = WAL;
@@ -87,8 +87,7 @@ _CAPABILITY_RE = tuple(
     (name, re.compile(pattern, re.I)) for name, pattern in config.CODE_CAPABILITY_PATTERNS
 )
 
-# JS/TS 的函数声明变体太多，正则覆盖常见四种：function 声明、const 箭头函数、
-# class 方法、对象方法简写。语法解析器处理不了 TSX 又要额外依赖，得不偿失。
+# shortcut: JS/TS 正则只覆盖部分常见声明，需要完整语法覆盖时再引入解析器。
 _JS_SYMBOL = re.compile(
     r"^\s*(?:export\s+)?(?:default\s+)?"
     r"(?:(?P<kw>async\s+function|function|class)\s+(?P<name1>[A-Za-z_$][\w$]*)"
@@ -165,8 +164,8 @@ def iter_code_files(roots: list[Path] | None = None) -> Iterator[tuple[Path, str
 
 # ---------------------------------------------------------------- 解析
 
-def _python_symbols(text: str) -> list[tuple[str, str, int, str, str]]:
-    """用 ast 抽 Python 符号，拿到准确签名和所属类。
+def _python_details(text: str) -> tuple[list[tuple[str, str, int, str, str]], set[str]]:
+    """一次解析并提取 Python 符号、签名、所属类和导入。
 
     语法错误的文件退回空列表——半仓库的实验脚本跑不通是常态，不该让整个索引失败。
     """
@@ -177,9 +176,11 @@ def _python_symbols(text: str) -> list[tuple[str, str, int, str, str]]:
             warnings.simplefilter("ignore")
             tree = ast.parse(text)
     except (SyntaxError, ValueError, RecursionError):
-        return []
+        return [], set()
 
     out: list[tuple[str, str, int, str, str]] = []
+    methods: set[ast.AST] = set()
+    modules: set[str] = set()
 
     def signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
         args = [a.arg for a in node.args.args]
@@ -195,37 +196,16 @@ def _python_symbols(text: str) -> list[tuple[str, str, int, str, str]]:
             out.append((node.name, "class", node.lineno, "", ""))
             for child in node.body:
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    methods.add(child)
                     out.append((child.name, "method", child.lineno, signature(child), node.name))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # 类内方法已在上面收过，这里只要模块级函数
-            out.append((node.name, "function", node.lineno, signature(node), ""))
-
-    # 去掉重复收进来的类方法（ast.walk 会再访问一次）
-    seen: set[tuple[str, int]] = set()
-    unique: list[tuple[str, str, int, str, str]] = []
-    for item in out:
-        key = (item[0], item[2])
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-    return unique
-
-
-def _python_imports(text: str) -> set[str]:
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            tree = ast.parse(text)
-    except (SyntaxError, ValueError, RecursionError):
-        return set()
-    modules: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
+            if node not in methods:
+                out.append((node.name, "function", node.lineno, signature(node), ""))
+        elif isinstance(node, ast.Import):
             modules.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             modules.add(node.module.split(".")[0])
-    return modules
+    return out, modules
 
 
 def _js_symbols(text: str) -> list[tuple[str, str, int, str, str]]:
@@ -242,9 +222,15 @@ def _js_symbols(text: str) -> list[tuple[str, str, int, str, str]]:
 
 def parse_file(path: Path, project: str) -> ParsedFile | None:
     try:
+        before = path.stat()
         text = path.read_text(encoding="utf-8", errors="replace")
         stat = path.stat()
     except OSError:
+        return None
+    # Reject a changing snapshot so the next refresh retries it with consistent metadata.
+    if any(getattr(before, key) != getattr(stat, key) for key in (
+        "st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns",
+    )):
         return None
 
     lang = "python" if path.suffix == ".py" else "javascript"
@@ -258,8 +244,7 @@ def parse_file(path: Path, project: str) -> ParsedFile | None:
     )
 
     if lang == "python":
-        parsed.symbols = _python_symbols(text)
-        parsed.imports = _python_imports(text)
+        parsed.symbols, parsed.imports = _python_details(text)
     else:
         parsed.symbols = _js_symbols(text)
         parsed.imports = {
@@ -583,10 +568,10 @@ def render_knowledge(conn: sqlite3.Connection, *, per_capability: int = 6) -> st
     forks = [f for f in detect_forks(conn) if f["likely_fork"]]
     if forks:
         lines += [
-            "## ⚠️ 先看这个：同一代码库存在多份",
+            "## ⚠️ 待核查：可能存在代码库副本",
             "",
-            "下面这些「项目」共享大量同名文件，是同一个代码库的多份拷贝并已分叉。",
-            "**上面的重复数字因此虚高**——同一段代码在两份拷贝里各算一次。",
+            "下面这些「项目」共享大量同路径、同行数文件，可能是同一代码库的副本。",
+            "**行数相同不代表内容相同，请先比较源码**；若确认为副本，上面的重复数字会虚高。",
             "",
             "但两种情况长得一样，索引分不出来，需要人判断：",
             "",
@@ -609,7 +594,7 @@ def render_knowledge(conn: sqlite3.Connection, *, per_capability: int = 6) -> st
     cross = [s for s in dup["cross_project_symbols"] if s["projects"] >= 2][:15]
     if cross:
         lines += [
-            "## 跨项目同名函数（复制粘贴的直接证据）",
+            "## 跨项目同名函数（待核查的重复候选）",
             "",
             "| 函数名 | 定义处数 | 跨项目数 |",
             "|---|---|---|",
@@ -635,7 +620,7 @@ def write_knowledge(conn: sqlite3.Connection) -> Path:
 
 
 def detect_forks(conn: sqlite3.Connection, *, min_shared: int = 20) -> list[dict[str, Any]]:
-    """找出彼此是副本的项目对。
+    """找出可能是副本的项目对，需比较源码确认。
 
     一个项目被复制成两份（换个 remote、开个实验分支）之后，两边会有大量同名且
     内容一致的文件。那不是「两个项目重复实现了同一个能力」，是**一个项目存在两份
@@ -667,7 +652,7 @@ def detect_forks(conn: sqlite3.Connection, *, min_shared: int = 20) -> list[dict
                     "files_b": len(by_project[b]),
                     "shared_paths": len(shared),
                     "same_line_count": identical,
-                    # 行数相同不等于内容相同，但作为副本信号足够强
+                    # shortcut: 同行数只筛副本候选，需要确认相同内容时再比较源码。
                     "likely_fork": identical / len(shared) > 0.4,
                 }
             )

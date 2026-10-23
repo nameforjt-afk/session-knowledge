@@ -182,7 +182,10 @@ bash uninstall.sh --purge    # 连索引库一起删
   Copilot 那些不在范围内。
 - **脱敏是模式匹配**，覆盖常见格式，自定义格式的密钥可能漏网。定期跑
   `verify-redaction` 抽查。
-- **代码索引只认 Python/JS/TS**（`.py .js .ts .tsx .mjs .jsx`）。
+- **代码索引只认 Python/JS/TS**（`.py .js .ts .tsx .mjs .jsx`）。读取期间发生变化的文件
+  会跳过并报告刷新失败，供后续运行重试。本次更新会全量重建一次代码索引，修复旧缓存。
+- **JS/TS 提取只覆盖部分语法**，正则会漏掉一些箭头函数和类型标注声明。
+  副本提示只根据相同路径和行数筛选；归档前需要对比源码确认。
 - **首次全量索引**几百个会话大约 1-3 分钟，之后增量刷新 1-2 秒。
 - 需要 **Python 3.10+**，且自带的 sqlite3 要编译了 FTS5。macOS 系统自带的
   Python 有时不满足，装 python.org 官方版或 `brew install python` 即可。

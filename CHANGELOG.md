@@ -12,6 +12,11 @@ All notable changes to session-knowledge are documented here.
 
 ### Fixed
 
+- Reject code files changed or replaced during reading instead of storing old symbols with
+  new file metadata; rebuild existing code indexes once to repair cached snapshots.
+- Extract Python symbols and imports in one AST pass without collecting class methods twice.
+- Describe fork and same-name symbol matches as candidates requiring source comparison.
+
 - Index legitimate text blocks from array-form user messages while continuing to exclude
   meta and known system content
   ([#31](https://github.com/nameforjt-afk/session-knowledge/issues/31)).
